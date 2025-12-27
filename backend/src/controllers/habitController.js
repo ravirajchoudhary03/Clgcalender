@@ -16,14 +16,14 @@ const useMockDb = () => {
 exports.getHabits = async (req, res) => {
   try {
     const userId = req.user._id;
-    
+
     // Try MongoDB first
     try {
       const habits = await Habit.find({ user: userId }).lean();
       return res.json(habits);
     } catch (err) {
       // Fall back to mock data
-      const userHabits = Object.values(mockDb.habits).filter(h => h.user_id === userId);
+      const userHabits = Object.values(mockDb.habits).filter(h => h.user_id.toString() === userId.toString());
       return res.json(userHabits);
     }
   } catch (err) {
@@ -47,11 +47,11 @@ exports.createHabit = async (req, res) => {
       return res.json(habit);
     } catch (err) {
       // Use mock data
-      const userHabits = Object.values(mockDb.habits).filter(h => h.user_id === userId);
+      const userHabits = Object.values(mockDb.habits).filter(h => h.user_id.toString() === userId.toString());
       if (userHabits.length >= 10) return res.status(400).json({ message: 'Max 10 habits allowed' });
-      
+
       const id = mockDb.nextId.habits++;
-      const habit = { _id: String(id), user_id: userId, title, color, createdAt: new Date() };
+      const habit = { _id: String(id), user_id: userId.toString(), title, color, createdAt: new Date() };
       mockDb.habits[id] = habit;
       return res.json(habit);
     }
@@ -98,16 +98,16 @@ exports.getCompletionStats = async (req, res) => {
     try {
       const logs = await HabitLog.find({ habit: habitId, date: { $gte: start, $lte: end } }).lean();
       const completed = logs.filter(l => l.completed).length;
-      const total = logs.length || 1;
-      const percentage = Math.round((completed / total) * 100);
-      return res.json({ habitId, percentage, completed, total });
+      const totalDays = logs.length || 1;
+      const percent = Math.round((completed / totalDays) * 100);
+      return res.json({ habitId, percent, completed, totalDays });
     } catch (err) {
       // Use mock data
       const logs = Object.values(mockDb.habitLogs).filter(l => l.habit_id === habitId && l.date >= start && l.date <= end);
       const completed = logs.filter(l => l.completed).length;
-      const total = logs.length || 1;
-      const percentage = Math.round((completed / total) * 100);
-      return res.json({ habitId, percentage, completed, total });
+      const totalDays = logs.length || 1;
+      const percent = Math.round((completed / totalDays) * 100);
+      return res.json({ habitId, percent, completed, totalDays });
     }
   } catch (err) {
     console.error(err);

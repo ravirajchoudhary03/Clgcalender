@@ -145,62 +145,108 @@ exports.addSchedule = async (req, res) => {
   const endTime = `${endHour.toString().padStart(2, "0")}:${minutes}`;
 
   try {
-    // Find the subject
-    const subject = await Subject.findOne({
-      _id: subjectId,
-      user: req.user._id,
-    });
-    if (!subject) {
-      return res.status(404).json({ message: "Subject not found" });
-    }
-
-    // Check if this time slot already exists
-    const existingSlotIndex = subject.schedule.findIndex(
-      (slot) => slot.day === day && slot.startTime === startTime,
-    );
-
-    if (existingSlotIndex !== -1) {
-      // Update existing slot
-      subject.schedule[existingSlotIndex] = {
-        day,
-        startTime,
-        endTime,
-      };
-      console.log("✅ Schedule entry updated");
-    } else {
-      // Add new schedule entry
-      subject.schedule.push({
-        day,
-        startTime,
-        endTime,
+    try {
+      // Find the subject
+      const subject = await Subject.findOne({
+        _id: subjectId,
+        user: req.user._id,
       });
-      console.log("✅ Schedule entry added");
+      if (!subject) {
+        return res.status(404).json({ message: "Subject not found" });
+      }
+
+      // Check if this time slot already exists
+      const existingSlotIndex = subject.schedule.findIndex(
+        (slot) => slot.day === day && slot.startTime === startTime,
+      );
+
+      if (existingSlotIndex !== -1) {
+        // Update existing slot
+        subject.schedule[existingSlotIndex] = {
+          day,
+          startTime,
+          endTime,
+        };
+        console.log("✅ Schedule entry updated");
+      } else {
+        // Add new schedule entry
+        subject.schedule.push({
+          day,
+          startTime,
+          endTime,
+        });
+        console.log("✅ Schedule entry added");
+      }
+
+      // Update classesPerWeek
+      subject.classesPerWeek = subject.schedule.length;
+
+      await subject.save();
+
+      console.log("✅ Schedule entry added to subject");
+      console.log("📊 Subject now has", subject.schedule.length, "time slots");
+
+      // If updating existing slot, delete future class instances first
+      if (existingSlotIndex !== -1) {
+        await deleteFutureClassInstances(subject._id, req.user._id);
+      }
+
+      // Generate ClassInstances for the next 4 weeks
+      await generateClassInstances(subject, 4);
+
+      // Return the updated subject
+      const updatedSubject = await Subject.findById(subjectId).lean();
+
+      return res.json({
+        message: "Schedule added successfully",
+        subject: updatedSubject,
+        scheduleEntry: { day, startTime, endTime },
+      });
+    } catch (err) {
+      console.error("Database error, using mock data:", err);
+      // Use mock data fallback
+      const subject = Object.values(mockDb.subjects).find(
+        (s) => s._id === subjectId && s.user_id === req.user._id.toString(),
+      );
+      if (!subject) {
+        return res.status(404).json({ message: "Subject not found" });
+      }
+
+      // Check if this time slot already exists
+      const existingSlotIndex = subject.schedule.findIndex(
+        (slot) => slot.day === day && slot.startTime === startTime,
+      );
+
+      if (existingSlotIndex !== -1) {
+        // Update existing slot
+        subject.schedule[existingSlotIndex] = {
+          day,
+          startTime,
+          endTime,
+        };
+        console.log("✅ Schedule entry updated");
+      } else {
+        // Add new schedule entry
+        subject.schedule.push({
+          day,
+          startTime,
+          endTime,
+        });
+        console.log("✅ Schedule entry added");
+      }
+
+      // Update classesPerWeek
+      subject.classesPerWeek = subject.schedule.length;
+
+      console.log("✅ Schedule entry added to subject (mock)");
+      console.log("📊 Subject now has", subject.schedule.length, "time slots");
+
+      return res.json({
+        message: "Schedule added successfully",
+        subject: subject,
+        scheduleEntry: { day, startTime, endTime },
+      });
     }
-
-    // Update classesPerWeek
-    subject.classesPerWeek = subject.schedule.length;
-
-    await subject.save();
-
-    console.log("✅ Schedule entry added to subject");
-    console.log("📊 Subject now has", subject.schedule.length, "time slots");
-
-    // If updating existing slot, delete future class instances first
-    if (existingSlotIndex !== -1) {
-      await deleteFutureClassInstances(subject._id, req.user._id);
-    }
-
-    // Generate ClassInstances for the next 4 weeks
-    await generateClassInstances(subject, 4);
-
-    // Return the updated subject
-    const updatedSubject = await Subject.findById(subjectId).lean();
-
-    return res.json({
-      message: "Schedule added successfully",
-      subject: updatedSubject,
-      scheduleEntry: { day, startTime, endTime },
-    });
   } catch (err) {
     console.error("❌ Error adding schedule:", err);
     res.status(500).json({ message: "Server error", error: err.message });
@@ -209,55 +255,56 @@ exports.addSchedule = async (req, res) => {
 
 // Get schedule for user (returns all subjects with their schedules)
 exports.getSchedule = async (req, res) => {
-  if (!process.env.MONGO_URI) {
-    // Use mock data
-    const subjects = Object.values(mockDb.subjects).filter(
-      (s) => s.user_id === req.user._id.toString(),
-    );
-    const scheduleEntries = [];
-    subjects.forEach((subject) => {
-      if (subject.schedule && subject.schedule.length > 0) {
-        subject.schedule.forEach((slot) => {
-          scheduleEntries.push({
-            _id: `${subject._id}_${slot.day}_${slot.startTime}`,
-            day: slot.day,
-            time: slot.startTime,
-            endTime: slot.endTime,
-            subject: subject,
-            subjectId: subject._id,
-          });
-        });
-      }
-    });
-    return res.json(scheduleEntries);
-  }
-
   try {
-    const subjects = await Subject.find({ user: req.user._id }).maxTimeMS(1000).lean();
+    try {
+      const subjects = await Subject.find({ user: req.user._id }).maxTimeMS(1000).lean();
 
-    console.log("📚 Found", subjects.length, "subjects");
+      console.log("📚 Found", subjects.length, "subjects");
 
-    // Flatten all schedule entries across subjects
-    const scheduleEntries = [];
+      // Flatten all schedule entries across subjects
+      const scheduleEntries = [];
 
-    subjects.forEach((subject) => {
-      if (subject.schedule && subject.schedule.length > 0) {
-        subject.schedule.forEach((slot) => {
-          scheduleEntries.push({
-            _id: `${subject._id}_${slot.day}_${slot.startTime}`, // Composite ID
-            day: slot.day,
-            time: slot.startTime,
-            endTime: slot.endTime,
-            subject: subject,
-            subjectId: subject._id,
+      subjects.forEach((subject) => {
+        if (subject.schedule && subject.schedule.length > 0) {
+          subject.schedule.forEach((slot) => {
+            scheduleEntries.push({
+              _id: `${subject._id}_${slot.day}_${slot.startTime}`, // Composite ID
+              day: slot.day,
+              time: slot.startTime,
+              endTime: slot.endTime,
+              subject: subject,
+              subjectId: subject._id,
+            });
           });
-        });
-      }
-    });
+        }
+      });
 
-    console.log("📅 Total schedule entries:", scheduleEntries.length);
+      console.log("📅 Total schedule entries:", scheduleEntries.length);
 
-    return res.json(scheduleEntries);
+      return res.json(scheduleEntries);
+    } catch (err) {
+      console.error("Database error, using mock data:", err);
+      // Use mock data
+      const subjects = Object.values(mockDb.subjects).filter(
+        (s) => s.user_id === req.user._id.toString(),
+      );
+      const scheduleEntries = [];
+      subjects.forEach((subject) => {
+        if (subject.schedule && subject.schedule.length > 0) {
+          subject.schedule.forEach((slot) => {
+            scheduleEntries.push({
+              _id: `${subject._id}_${slot.day}_${slot.startTime}`,
+              day: slot.day,
+              time: slot.startTime,
+              endTime: slot.endTime,
+              subject: subject,
+              subjectId: subject._id,
+            });
+          });
+        }
+      });
+      return res.json(scheduleEntries);
+    }
   } catch (err) {
     console.error("❌ Error fetching schedule:", err);
     res.status(500).json({ message: "Server error", error: err.message });
