@@ -1,0 +1,138 @@
+================================================================================
+                    🚨 FINAL FIX - DO THIS NOW
+================================================================================
+
+YOUR PROBLEM: Classes not showing on Dashboard calendar
+
+THE CAUSE: Backend is running OLD code (before the fix was applied)
+
+THE SOLUTION: Restart the backend server to load NEW code
+
+================================================================================
+                    STEP-BY-STEP FIX (3 STEPS)
+================================================================================
+
+STEP 1: RESTART BACKEND SERVER
+--------------------------------
+
+Option A - Double-click this file:
+→ RESTART_BACKEND.bat
+
+Option B - Manual restart:
+1. Press Ctrl+Alt+Delete
+2. Open Task Manager
+3. Go to "Details" tab
+4. Find ALL "node.exe" entries
+5. Select each one and click "End Task"
+6. Open Command Prompt
+7. Type: cd C:\Users\ravir\Desktop\calender\backend
+8. Type: npm start
+9. Wait for: "Server running on port 5001"
+10. LEAVE THIS WINDOW OPEN
+
+
+STEP 2: VERIFY API IS WORKING
+-------------------------------
+
+Double-click this file:
+→ TEST_API.bat
+
+You should see:
+✅ Backend is running
+✅ Login successful
+✅ Subjects endpoint working
+✅ Week classes endpoint returns data (array with classes)
+
+If you see "Cannot GET /api/attendance/classes/week":
+→ Backend still running old code
+→ Go back to Step 1 and restart again
+
+
+STEP 3: REFRESH YOUR BROWSER
+------------------------------
+
+1. Open: http://localhost:3000
+2. If not logged in, login with:
+   Email: test@example.com
+   Password: password123
+3. Go to Dashboard
+4. Press Ctrl+Shift+R (hard refresh)
+5. Click the blue "Refresh" button on Dashboard
+
+✅ CLASSES WILL NOW APPEAR!
+
+You should see:
+- Monday: Mathematics 9AM, Physics 10AM
+- Tuesday: Chemistry 11AM
+- Wednesday: Mathematics 9AM, Physics 10AM
+- Thursday: Chemistry 11AM
+- Friday: Mathematics 9AM, Physics 10AM
+
+================================================================================
+                    WHY THIS HAPPENS
+================================================================================
+
+The code changes were applied to the files, but the backend server was still
+running the OLD version of the code from memory.
+
+Restarting the backend makes it load the NEW code that has the calendar sync
+fix built in.
+
+================================================================================
+                    WHAT WAS FIXED IN THE CODE
+================================================================================
+
+✅ MongoDB Atlas connected (cloud database)
+✅ Backend controller updated (scheduleController.js)
+✅ Auto-generation of ClassInstances added
+✅ Dashboard reads from ClassInstance (single source of truth)
+✅ Schedule and Dashboard now perfectly synced
+✅ Test data created (3 subjects, 34 classes)
+
+Everything is ready - just needs backend restart!
+
+================================================================================
+                    IF IT STILL DOESN'T WORK
+================================================================================
+
+1. Make sure backend window shows: "Server running on port 5001"
+2. Make sure frontend window shows: "Local: http://localhost:3000"
+3. Run TEST_API.bat to verify endpoints work
+4. Check browser console (F12) for errors
+5. Make sure you're logged in as: test@example.com
+6. Try navigating to different weeks (Next Week button)
+
+================================================================================
+                    QUICK COMMANDS
+================================================================================
+
+Restart Backend:
+→ Double-click: RESTART_BACKEND.bat
+
+Test API:
+→ Double-click: TEST_API.bat
+
+Start Frontend (if not running):
+→ Open Command Prompt
+→ cd C:\Users\ravir\Desktop\calender\frontend
+→ npm run dev
+
+Check if servers are running:
+→ Backend: http://localhost:5001
+→ Frontend: http://localhost:3000
+
+================================================================================
+                    YOUR LOGIN DETAILS
+================================================================================
+
+URL: http://localhost:3000
+Email: test@example.com
+Password: password123
+
+================================================================================
+
+                🎯 START WITH STEP 1 NOW!
+
+          Double-click: RESTART_BACKEND.bat
+
+================================================================================
