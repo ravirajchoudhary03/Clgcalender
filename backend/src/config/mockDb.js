@@ -3,8 +3,8 @@
 
 const mockDb = {
   users: {
-    1: {
-      _id: "1",
+    "000000000000000000000001": {
+      _id: "000000000000000000000001",
       name: "John Student",
       email: "student@example.com",
       // password is: password123
@@ -15,21 +15,21 @@ const mockDb = {
   habits: {
     1: {
       _id: "1",
-      user_id: "1",
+      user_id: "000000000000000000000001",
       title: "Morning Exercise",
       color: "#FF6B6B",
       createdAt: new Date("2024-01-01"),
     },
     2: {
       _id: "2",
-      user_id: "1",
+      user_id: "000000000000000000000001",
       title: "Read 30 mins",
       color: "#4ECDC4",
       createdAt: new Date("2024-01-02"),
     },
     3: {
       _id: "3",
-      user_id: "1",
+      user_id: "000000000000000000000001",
       title: "Study DSA",
       color: "#45B7D1",
       createdAt: new Date("2024-01-03"),
@@ -38,21 +38,21 @@ const mockDb = {
   habitLogs: {
     1: {
       _id: "1",
-      user_id: "1",
+      user_id: "000000000000000000000001",
       habit_id: "1",
       date: "2024-01-15",
       completed: true,
     },
     2: {
       _id: "2",
-      user_id: "1",
+      user_id: "000000000000000000000001",
       habit_id: "2",
       date: "2024-01-15",
       completed: true,
     },
     3: {
       _id: "3",
-      user_id: "1",
+      user_id: "000000000000000000000001",
       habit_id: "3",
       date: "2024-01-15",
       completed: false,
@@ -61,7 +61,7 @@ const mockDb = {
   subjects: {
     1: {
       _id: "1",
-      user_id: "1",
+      user_id: "000000000000000000000001",
       name: "Data Structures",
       totalClasses: 20,
       classesAttended: 18,
@@ -69,7 +69,7 @@ const mockDb = {
     },
     2: {
       _id: "2",
-      user_id: "1",
+      user_id: "000000000000000000000001",
       name: "Web Development",
       totalClasses: 15,
       classesAttended: 14,
@@ -77,7 +77,7 @@ const mockDb = {
     },
     3: {
       _id: "3",
-      user_id: "1",
+      user_id: "000000000000000000000001",
       name: "Database Design",
       totalClasses: 18,
       classesAttended: 16,
@@ -87,21 +87,21 @@ const mockDb = {
   attendanceLogs: {
     1: {
       _id: "1",
-      user_id: "1",
+      user_id: "000000000000000000000001",
       subject_id: "1",
       date: "2024-01-15",
       status: "attended",
     },
     2: {
       _id: "2",
-      user_id: "1",
+      user_id: "000000000000000000000001",
       subject_id: "2",
       date: "2024-01-15",
       status: "attended",
     },
     3: {
       _id: "3",
-      user_id: "1",
+      user_id: "000000000000000000000001",
       subject_id: "3",
       date: "2024-01-15",
       status: "missed",
@@ -110,21 +110,21 @@ const mockDb = {
   schedules: {
     1: {
       _id: "1",
-      user_id: "1",
+      user_id: "000000000000000000000001",
       day: "Monday",
       time: "09:00",
       subject_id: "1",
     },
     2: {
       _id: "2",
-      user_id: "1",
+      user_id: "000000000000000000000001",
       day: "Tuesday",
       time: "11:00",
       subject_id: "2",
     },
     3: {
       _id: "3",
-      user_id: "1",
+      user_id: "000000000000000000000001",
       day: "Wednesday",
       time: "14:00",
       subject_id: "3",

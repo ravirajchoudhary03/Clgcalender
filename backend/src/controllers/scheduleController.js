@@ -7,6 +7,21 @@ const isSameOrBefore = require("dayjs/plugin/isSameOrBefore");
 dayjs.extend(isSameOrAfter);
 dayjs.extend(isSameOrBefore);
 
+// Helper to delete future class instances for a subject
+const deleteFutureClassInstances = async (subjectId, userId) => {
+  const today = dayjs().startOf("day");
+  try {
+    const result = await ClassInstance.deleteMany({
+      user: userId,
+      subject: subjectId,
+      date: { $gte: today.toDate() },
+    });
+    console.log(`🗑️ Deleted ${result.deletedCount} future class instances for subject ${subjectId}`);
+  } catch (err) {
+    console.error("Error deleting future instances:", err);
+  }
+};
+
 // Helper function to generate class instances for a subject
 const generateClassInstances = async (subject, weeksAhead = 4) => {
   if (!subject.schedule || subject.schedule.length === 0) {
@@ -140,22 +155,27 @@ exports.addSchedule = async (req, res) => {
     }
 
     // Check if this time slot already exists
-    const existingSlot = subject.schedule.find(
+    const existingSlotIndex = subject.schedule.findIndex(
       (slot) => slot.day === day && slot.startTime === startTime,
     );
 
-    if (existingSlot) {
-      return res
-        .status(400)
-        .json({ message: "This time slot already exists for this subject" });
+    if (existingSlotIndex !== -1) {
+      // Update existing slot
+      subject.schedule[existingSlotIndex] = {
+        day,
+        startTime,
+        endTime,
+      };
+      console.log("✅ Schedule entry updated");
+    } else {
+      // Add new schedule entry
+      subject.schedule.push({
+        day,
+        startTime,
+        endTime,
+      });
+      console.log("✅ Schedule entry added");
     }
-
-    // Add the new schedule entry
-    subject.schedule.push({
-      day,
-      startTime,
-      endTime,
-    });
 
     // Update classesPerWeek
     subject.classesPerWeek = subject.schedule.length;
@@ -164,6 +184,11 @@ exports.addSchedule = async (req, res) => {
 
     console.log("✅ Schedule entry added to subject");
     console.log("📊 Subject now has", subject.schedule.length, "time slots");
+
+    // If updating existing slot, delete future class instances first
+    if (existingSlotIndex !== -1) {
+      await deleteFutureClassInstances(subject._id, req.user._id);
+    }
 
     // Generate ClassInstances for the next 4 weeks
     await generateClassInstances(subject, 4);
@@ -184,8 +209,31 @@ exports.addSchedule = async (req, res) => {
 
 // Get schedule for user (returns all subjects with their schedules)
 exports.getSchedule = async (req, res) => {
+  if (!process.env.MONGO_URI) {
+    // Use mock data
+    const subjects = Object.values(mockDb.subjects).filter(
+      (s) => s.user_id === req.user._id.toString(),
+    );
+    const scheduleEntries = [];
+    subjects.forEach((subject) => {
+      if (subject.schedule && subject.schedule.length > 0) {
+        subject.schedule.forEach((slot) => {
+          scheduleEntries.push({
+            _id: `${subject._id}_${slot.day}_${slot.startTime}`,
+            day: slot.day,
+            time: slot.startTime,
+            endTime: slot.endTime,
+            subject: subject,
+            subjectId: subject._id,
+          });
+        });
+      }
+    });
+    return res.json(scheduleEntries);
+  }
+
   try {
-    const subjects = await Subject.find({ user: req.user._id }).lean();
+    const subjects = await Subject.find({ user: req.user._id }).maxTimeMS(1000).lean();
 
     console.log("📚 Found", subjects.length, "subjects");
 
@@ -225,7 +273,7 @@ exports.getTodaysClasses = async (req, res) => {
     console.log("📅 Fetching today's classes for:", today);
 
     // Auto-generate missing instances for today (safety check)
-    const subjects = await Subject.find({ user: req.user._id });
+    const subjects = await Subject.find({ user: req.user._id }).maxTimeMS(1000);
     for (const subject of subjects) {
       if (subject.schedule && subject.schedule.length > 0) {
         await generateClassInstances(subject, 1); // Generate for next 1 week

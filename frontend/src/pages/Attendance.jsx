@@ -1,28 +1,16 @@
-// Attendance page: manage subjects, view attendance percentage and status
+// Attendance page: view attendance percentage and status (read-only)
 import { useState, useEffect } from "react";
-import dayjs from "dayjs";
 import attendanceService from "../services/attendanceService";
-import { SubjectForm } from "../components/SubjectForm";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
   PieChart,
   Pie,
   Cell,
+  ResponsiveContainer,
 } from "recharts";
 
 export const Attendance = () => {
   const [subjects, setSubjects] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [date, setDate] = useState(dayjs().format("YYYY-MM-DD"));
-  const [selectedStatus, setSelectedStatus] = useState("attended");
 
   useEffect(() => {
     fetchSubjects();
@@ -37,32 +25,7 @@ export const Attendance = () => {
     }
   };
 
-  const handleAddSubject = async (subjectData) => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await attendanceService.createSubject(
-        subjectData.name,
-        subjectData.color,
-        subjectData.classesPerWeek,
-        subjectData.schedule,
-      );
-      setSubjects([...subjects, res.data]);
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to add subject");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const logAttendance = async (subjectId, status) => {
-    try {
-      await attendanceService.logAttendance(subjectId, date, status);
-      fetchSubjects();
-    } catch (err) {
-      setError("Failed to log attendance");
-    }
-  };
+  // Removed handleAddSubject and logAttendance - Attendance is now read-only
 
   const getStatusColor = (percent) => {
     if (percent >= 75) return "bg-green-100 border-green-300";
@@ -96,55 +59,7 @@ export const Attendance = () => {
         <div className="bg-red-100 text-red-700 p-3 rounded">{error}</div>
       )}
 
-      {/* Add Subject Form */}
-      <div className="bg-blue-50 border border-blue-200 shadow rounded-lg p-6">
-        <h2 className="text-2xl font-bold mb-4">Add a Subject</h2>
-        <SubjectForm onSubmit={handleAddSubject} loading={loading} />
-      </div>
-
-      {/* Manual Log Form */}
-      <div className="bg-blue-50 border border-blue-200 shadow rounded-lg p-6">
-        <h3 className="font-bold mb-3">Log Attendance Manually</h3>
-        <div className="flex gap-3 items-end flex-wrap">
-          <div>
-            <label className="block text-sm font-semibold mb-1">Date</label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="border border-gray-300 p-2 rounded bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold mb-1">Status</label>
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="border border-gray-300 p-2 rounded bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
-            >
-              <option value="attended">Attended</option>
-              <option value="missed">Missed</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-semibold mb-1">Subject</label>
-            <select
-              className="border border-gray-300 p-2 rounded bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
-              onChange={(e) => {
-                if (e.target.value)
-                  logAttendance(e.target.value, selectedStatus);
-              }}
-            >
-              <option value="">Select subject</option>
-              {subjects.map((s) => (
-                <option key={s._id} value={s._id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
+      {/* Attendance is now read-only - subjects are managed from Schedule page */}
 
       {/* Subjects Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

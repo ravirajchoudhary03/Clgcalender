@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import dayjs from "dayjs";
 import scheduleService from "../services/scheduleService";
 import attendanceService from "../services/attendanceService";
+import { SubjectForm } from "../components/SubjectForm";
 
 export const Schedule = () => {
   const [schedule, setSchedule] = useState([]);
@@ -82,6 +83,24 @@ export const Schedule = () => {
     }
   };
 
+  const handleAddSubject = async (subjectData) => {
+    setLoading(true);
+    setError("");
+    try {
+      await attendanceService.createSubject(
+        subjectData.name,
+        subjectData.color,
+        subjectData.classesPerWeek,
+        subjectData.schedule,
+      );
+      fetchData();
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to add subject");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const scheduleByDay = (dayName) => schedule.filter((s) => s.day === dayName);
 
   return (
@@ -89,6 +108,12 @@ export const Schedule = () => {
       {error && (
         <div className="bg-red-100 text-red-700 p-3 rounded">{error}</div>
       )}
+
+      {/* Add Subject */}
+      <div className="bg-green-50 border border-green-200 shadow rounded-lg p-6">
+        <h2 className="text-2xl font-bold mb-4">Add a Subject</h2>
+        <SubjectForm onSubmit={handleAddSubject} loading={loading} />
+      </div>
 
       {/* Add Schedule */}
       <div className="bg-blue-50 border border-blue-200 shadow rounded-lg p-6">

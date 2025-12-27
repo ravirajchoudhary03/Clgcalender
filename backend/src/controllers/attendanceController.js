@@ -136,10 +136,11 @@ exports.createSubject = async (req, res) => {
     } catch (err) {
       console.error("Database error, using mock data:", err);
       // Use mock data fallback
+      const validSchedule = schedule && Array.isArray(schedule) ? schedule : [];
       const id = mockDb.nextId.subjects++;
       const sub = {
         _id: String(id),
-        user_id: req.user._id,
+        user_id: req.user._id.toString(),
         name,
         color: color || "#34D399",
         totalClasses: 0,
@@ -181,7 +182,7 @@ exports.createSubject = async (req, res) => {
             const instanceId = mockDb.nextId.classInstances++;
             mockDb.classInstances[instanceId] = {
               _id: String(instanceId),
-              user_id: req.user._id,
+              user_id: req.user._id.toString(),
               subject_id: String(id),
               date: currentDate.format("YYYY-MM-DD"),
               startTime: slot.startTime,
@@ -204,50 +205,71 @@ exports.createSubject = async (req, res) => {
 
 // List subjects with calculated percentage and status color
 exports.listSubjects = async (req, res) => {
+  if (!process.env.MONGO_URI) {
+    // Use mock data directly
+    const subs = Object.values(mockDb.subjects).filter(
+      (s) => s.user_id === req.user._id.toString(),
+    );
+    const result = subs.map((s) => {
+      const totalConducted = s.totalClasses - (s.classesCancelled || 0);
+      const percent =
+        totalConducted === 0
+          ? 0
+          : Math.round((s.classesAttended / totalConducted) * 100);
+      let status = "red";
+      if (percent >= 75) status = "green";
+      else if (percent >= 65) status = "yellow";
+      return {
+        ...s,
+        name: s.name,
+        percent,
+        status,
+        classesAttended: s.classesAttended,
+        totalClasses: s.totalClasses,
+      };
+    });
+    return res.json(result);
+  }
+
   try {
-    try {
-      const subs = await Subject.find({ user: req.user._id }).lean();
-      const result = subs.map((s) => {
-        const totalConducted = s.totalClasses - (s.classesCancelled || 0);
-        const percent =
-          totalConducted === 0
-            ? 0
-            : Math.round((s.classesAttended / totalConducted) * 100);
-        let status = "red";
-        if (percent >= 75) status = "green";
-        else if (percent >= 65) status = "yellow";
-        return { ...s, percent, status };
-      });
-      return res.json(result);
-    } catch (err) {
-      console.error("Database error, using mock data:", err);
-      // Use mock data fallback
-      const subs = Object.values(mockDb.subjects).filter(
-        (s) => s.user_id === req.user._id,
-      );
-      const result = subs.map((s) => {
-        const totalConducted = s.totalClasses - (s.classesCancelled || 0);
-        const percent =
-          totalConducted === 0
-            ? 0
-            : Math.round((s.classesAttended / totalConducted) * 100);
-        let status = "red";
-        if (percent >= 75) status = "green";
-        else if (percent >= 65) status = "yellow";
-        return {
-          ...s,
-          name: s.name,
-          percent,
-          status,
-          classesAttended: s.classesAttended,
-          totalClasses: s.totalClasses,
-        };
-      });
-      return res.json(result);
-    }
+    const subs = await Subject.find({ user: req.user._id }).lean();
+    const result = subs.map((s) => {
+      const totalConducted = s.totalClasses - (s.classesCancelled || 0);
+      const percent =
+        totalConducted === 0
+          ? 0
+          : Math.round((s.classesAttended / totalConducted) * 100);
+      let status = "red";
+      if (percent >= 75) status = "green";
+      else if (percent >= 65) status = "yellow";
+      return { ...s, percent, status };
+    });
+    return res.json(result);
   } catch (err) {
-    console.error("Server error:", err);
-    res.status(500).json({ message: "Server error" });
+    console.error("Database error, using mock data:", err);
+    // Use mock data fallback
+    const subs = Object.values(mockDb.subjects).filter(
+      (s) => s.user_id === req.user._id.toString(),
+    );
+    const result = subs.map((s) => {
+      const totalConducted = s.totalClasses - (s.classesCancelled || 0);
+      const percent =
+        totalConducted === 0
+          ? 0
+          : Math.round((s.classesAttended / totalConducted) * 100);
+      let status = "red";
+      if (percent >= 75) status = "green";
+      else if (percent >= 65) status = "yellow";
+      return {
+        ...s,
+        name: s.name,
+        percent,
+        status,
+        classesAttended: s.classesAttended,
+        totalClasses: s.totalClasses,
+      };
+    });
+    return res.json(result);
   }
 };
 
@@ -295,7 +317,7 @@ exports.logAttendance = async (req, res) => {
       console.error("Database error:", err);
       // Use mock data fallback
       const subject = Object.values(mockDb.subjects).find(
-        (s) => s._id === subjectId && s.user_id === req.user._id,
+        (s) => s._id === subjectId && s.user_id === req.user._id.toString(),
       );
       if (!subject)
         return res.status(404).json({ message: "Subject not found" });
@@ -369,7 +391,7 @@ exports.getTodaysClasses = async (req, res) => {
         .filter((cls) => {
           const clsDate = new Date(cls.date);
           return (
-            cls.user_id === req.user._id &&
+            cls.user_id === req.user._id.toString() &&
             cls.date === dayjs().format("YYYY-MM-DD")
           );
         })
@@ -442,7 +464,7 @@ exports.getWeekClasses = async (req, res) => {
         .filter((cls) => {
           const clsDate = dayjs(cls.date);
           return (
-            cls.user_id === req.user._id &&
+            cls.user_id === req.user._id.toString() &&
             clsDate.isSameOrAfter(weekStart, "day") &&
             clsDate.isSameOrBefore(weekEnd, "day")
           );
