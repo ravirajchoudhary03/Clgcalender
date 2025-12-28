@@ -1,33 +1,19 @@
-const Habit = require('../models/Habit');
-const HabitLog = require('../models/HabitLog');
-const mockDb = require('../config/mockDb');
-
-// Helper to check if using mock data
-const useMockDb = () => {
-  try {
-    // If this throws, MongoDB is not available
-    return false;
-  } catch {
-    return true;
-  }
-};
+const supabase = require('../config/supabase');
 
 // Get habits for user
 exports.getHabits = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.id;
+    const { data: habits, error } = await supabase
+      .from('habits')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true });
 
-    // Try MongoDB first
-    try {
-      const habits = await Habit.find({ user: userId }).lean();
-      return res.json(habits);
-    } catch (err) {
-      // Fall back to mock data
-      const userHabits = Object.values(mockDb.habits).filter(h => h.user_id.toString() === userId.toString());
-      return res.json(userHabits);
-    }
+    if (error) throw error;
+    res.json(habits);
   } catch (err) {
-    console.error(err);
+    console.error('Get Habits Error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -35,28 +21,29 @@ exports.getHabits = async (req, res) => {
 // Create a habit (limit to 10 per user)
 exports.createHabit = async (req, res) => {
   const { title, color } = req.body;
-  const userId = req.user._id;
+  const userId = req.user.id;
 
   try {
-    try {
-      const count = await Habit.countDocuments({ user: userId });
-      if (count >= 10) return res.status(400).json({ message: 'Max 10 habits allowed' });
+    // Check count
+    const { count, error: countError } = await supabase
+      .from('habits')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId);
 
-      const habit = new Habit({ user: userId, title, color });
-      await habit.save();
-      return res.json(habit);
-    } catch (err) {
-      // Use mock data
-      const userHabits = Object.values(mockDb.habits).filter(h => h.user_id.toString() === userId.toString());
-      if (userHabits.length >= 10) return res.status(400).json({ message: 'Max 10 habits allowed' });
+    if (countError) throw countError;
+    if (count >= 10) return res.status(400).json({ message: 'Max 10 habits allowed' });
 
-      const id = mockDb.nextId.habits++;
-      const habit = { _id: String(id), user_id: userId.toString(), title, color, createdAt: new Date() };
-      mockDb.habits[id] = habit;
-      return res.json(habit);
-    }
+    // Insert
+    const { data: habit, error: insertError } = await supabase
+      .from('habits')
+      .insert([{ user_id: userId, title, color }])
+      .select()
+      .single();
+
+    if (insertError) throw insertError;
+    return res.json(habit);
   } catch (err) {
-    console.error(err);
+    console.error('Create Habit Error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -64,27 +51,21 @@ exports.createHabit = async (req, res) => {
 // Toggle or set completion for a date: create or update HabitLog
 exports.markCompletion = async (req, res) => {
   const { habitId, date, completed } = req.body;
-  const userId = req.user._id;
+  const userId = req.user.id;
   if (!habitId || !date || typeof completed !== 'boolean') return res.status(400).json({ message: 'Invalid payload' });
 
   try {
-    try {
-      const log = await HabitLog.findOneAndUpdate(
-        { user: userId, habit: habitId, date },
-        { completed },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-      );
-      return res.json(log);
-    } catch (err) {
-      // Use mock data
-      const key = `${userId}-${habitId}-${date}`;
-      const id = mockDb.nextId.habitLogs++;
-      const log = { _id: String(id), user_id: userId, habit_id: habitId, date, completed };
-      mockDb.habitLogs[id] = log;
-      return res.json(log);
-    }
+    // Upsert log
+    const { data: log, error } = await supabase
+      .from('habit_logs')
+      .upsert({ habit_id: habitId, date, completed }, { onConflict: 'habit_id, date' })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return res.json(log);
   } catch (err) {
-    console.error(err);
+    console.error('Mark Completion Error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -95,22 +76,32 @@ exports.getCompletionStats = async (req, res) => {
   if (!habitId || !start || !end) return res.status(400).json({ message: 'Missing params' });
 
   try {
-    try {
-      const logs = await HabitLog.find({ habit: habitId, date: { $gte: start, $lte: end } }).lean();
-      const completed = logs.filter(l => l.completed).length;
-      const totalDays = logs.length || 1;
-      const percent = Math.round((completed / totalDays) * 100);
-      return res.json({ habitId, percent, completed, totalDays });
-    } catch (err) {
-      // Use mock data
-      const logs = Object.values(mockDb.habitLogs).filter(l => l.habit_id === habitId && l.date >= start && l.date <= end);
-      const completed = logs.filter(l => l.completed).length;
-      const totalDays = logs.length || 1;
-      const percent = Math.round((completed / totalDays) * 100);
-      return res.json({ habitId, percent, completed, totalDays });
-    }
+    // Get logs for this habit in range
+    const { data: logs, error } = await supabase
+      .from('habit_logs')
+      .select('*')
+      .eq('habit_id', habitId)
+      .gte('date', start)
+      .lte('date', end);
+
+    if (error) throw error;
+
+    const completed = logs.filter(l => l.completed).length;
+    // Note: This simple calculation divides by range length, but logic might need adjustment if date range is dynamic
+    // For now assuming start/end defines the "total days" window or we just count logs?
+    // The previous logic took logs.length || 1, which implies it only counts days that have a log entry?
+    // Let's stick to the previous logical behavior: percent of LOGGED days that are completed.
+
+    // Correction based on previous code: 
+    // const totalDays = logs.length || 1;
+    // const percent = Math.round((completed / totalDays) * 100);
+
+    const totalDays = logs.length || 1;
+    const percent = Math.round((completed / totalDays) * 100);
+
+    return res.json({ habitId, percent, completed, totalDays });
   } catch (err) {
-    console.error(err);
+    console.error('Get Stats Error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };

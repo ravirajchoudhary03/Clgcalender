@@ -1,9 +1,6 @@
 // Auth middleware: verify JWT in Authorization: Bearer <token>
 
 const jwt = require('jsonwebtoken');
-const mongoose = require('mongoose');
-const User = require('../models/User');
-const mockDb = require('../config/mockDb');
 
 module.exports = async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -13,24 +10,16 @@ module.exports = async (req, res, next) => {
 
   const token = authHeader.split(' ')[1];
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    const { data: { user }, error } = await require('../config/supabase').auth.getUser(token);
 
-    // Try to find user in MongoDB first, if it fails use mock data
-    let user = null;
-    try {
-      user = await User.findById(payload.id).select('-password');
-    } catch (err) {
-      // MongoDB failed, try mock data
-      user = mockDb.users[payload.id];
-      if (user) {
-        user = { _id: new mongoose.Types.ObjectId(user._id), name: user.name, email: user.email };
-      }
+    if (error || !user) {
+      throw new Error('Invalid token');
     }
 
-    if (!user) return res.status(401).json({ message: 'Invalid token' });
-    req.user = user;
+    req.user = { id: user.id };
     next();
   } catch (err) {
+    console.error('Auth Error:', err.message);
     return res.status(401).json({ message: 'Token invalid or expired' });
   }
 };

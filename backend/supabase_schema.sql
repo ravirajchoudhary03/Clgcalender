@@ -3,12 +3,26 @@ create extension if not exists "uuid-ossp";
 
 -- USERS TABLE
 create table if not exists public.users (
-  id uuid default uuid_generate_v4() primary key,
+  id uuid references auth.users not null primary key,
   email text unique not null,
-  password text not null,
   name text,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
+
+-- Function to handle new user signup
+create or replace function public.handle_new_user()
+returns trigger as $$
+begin
+  insert into public.users (id, email, name)
+  values (new.id, new.email, new.raw_user_meta_data->>'name');
+  return new;
+end;
+$$ language plpgsql security definer;
+
+-- Trigger to call the function on creation
+create or replace trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
 
 -- HABITS TABLE
 create table if not exists public.habits (

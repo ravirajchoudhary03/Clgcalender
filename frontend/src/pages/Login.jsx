@@ -65,11 +65,7 @@ export const Login = () => {
             Register
           </Link>
         </p>
-        <div className="text-xs text-gray-500 mt-6 p-2 bg-gray-50 rounded">
-          <p>Demo credentials:</p>
-          <p>Email: student@example.com</p>
-          <p>Password: password123</p>
-        </div>
+
       </div>
     </div>
   );

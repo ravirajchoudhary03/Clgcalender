@@ -14,10 +14,10 @@ app.use(morgan('dev'));
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
-// app.use('/api/habits', require('./routes/habits')); // Temporarily commented out until migrated
-// app.use('/api/attendance', require('./routes/attendance')); // Temporarily commented out until migrated
-// app.use('/api/schedule', require('./routes/schedule')); // Temporarily commented out until migrated
-// app.use('/api/users', require('./routes/users')); // Temporarily commented out until migrated
+app.use('/api/habits', require('./routes/habits'));
+app.use('/api/attendance', require('./routes/attendance'));
+app.use('/api/schedule', require('./routes/schedule'));
+app.use('/api/users', require('./routes/users'));
 
 app.get('/', (req, res) => res.json({
   message: 'College Organizer Backend (Supabase)',

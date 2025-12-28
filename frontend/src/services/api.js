@@ -7,9 +7,13 @@ const api = axios.create({
 });
 
 // Add token to requests
+import { supabase } from '../config/supabase';
+
 api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
+  async (config) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+
     if (token) config.headers.Authorization = `Bearer ${token}`;
     return config;
   },

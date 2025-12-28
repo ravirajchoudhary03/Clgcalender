@@ -16,7 +16,10 @@ import attendanceService from "../services/attendanceService";
 import scheduleService from "../services/scheduleService";
 import { TodaysClasses } from "../components/TodaysClasses";
 
+import { useAuth } from "../context/AuthContext";
+
 export const Dashboard = () => {
+  const { user } = useAuth(); // Get user from context
   const [loading, setLoading] = useState(true);
   const [habits, setHabits] = useState([]);
   const [attendance, setAttendance] = useState([]);
@@ -189,11 +192,11 @@ export const Dashboard = () => {
   const attendancePercentage =
     attendance.length > 0
       ? Math.round(
-          attendance.reduce((sum, a) => {
-            if (!a.totalClasses) return sum;
-            return sum + (a.classesAttended / a.totalClasses) * 100;
-          }, 0) / attendance.filter((a) => a.totalClasses).length || 0,
-        )
+        attendance.reduce((sum, a) => {
+          if (!a.totalClasses) return sum;
+          return sum + (a.classesAttended / a.totalClasses) * 100;
+        }, 0) / attendance.filter((a) => a.totalClasses).length || 0,
+      )
       : 0;
 
   const daysOfWeek = [
@@ -228,7 +231,7 @@ export const Dashboard = () => {
             <div className="flex items-center gap-3">
               <div className="text-right">
                 <p className="text-xs text-slate-400">Welcome back</p>
-                <p className="text-sm font-semibold text-slate-100">Student</p>
+                <p className="text-sm font-semibold text-slate-100">{user?.name || 'Student'}</p>
               </div>
               <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 border border-slate-600 shadow-md" />
             </div>
@@ -278,15 +281,14 @@ export const Dashboard = () => {
                     {classesForDay.map((cls) => (
                       <div
                         key={cls._id}
-                        className={`text-white text-xs rounded px-2 py-1 truncate ${
-                          cls.status === "attended"
-                            ? "bg-green-600 bg-opacity-80"
-                            : cls.status === "missed"
-                              ? "bg-red-600 bg-opacity-80"
-                              : cls.status === "cancelled"
-                                ? "bg-orange-600 bg-opacity-80"
-                                : "bg-blue-600 bg-opacity-80"
-                        }`}
+                        className={`text-white text-xs rounded px-2 py-1 truncate ${cls.status === "attended"
+                          ? "bg-green-600 bg-opacity-80"
+                          : cls.status === "missed"
+                            ? "bg-red-600 bg-opacity-80"
+                            : cls.status === "cancelled"
+                              ? "bg-orange-600 bg-opacity-80"
+                              : "bg-blue-600 bg-opacity-80"
+                          }`}
                         title={`${cls.subject?.name} - ${cls.status}`}
                       >
                         {cls.startTime} - {cls.subject?.name || "Class"}

@@ -1,497 +1,137 @@
-const Subject = require("../models/Subject");
-const ClassInstance = require("../models/ClassInstance");
-const dayjs = require("dayjs");
-const isSameOrAfter = require("dayjs/plugin/isSameOrAfter");
-const isSameOrBefore = require("dayjs/plugin/isSameOrBefore");
+const supabase = require('../config/supabase');
+const attendanceController = require('./attendanceController');
 
-dayjs.extend(isSameOrAfter);
-dayjs.extend(isSameOrBefore);
-
-// Helper to delete future class instances for a subject
-const deleteFutureClassInstances = async (subjectId, userId) => {
-  const today = dayjs().startOf("day");
-  try {
-    const result = await ClassInstance.deleteMany({
-      user: userId,
-      subject: subjectId,
-      date: { $gte: today.toDate() },
-    });
-    console.log(`🗑️ Deleted ${result.deletedCount} future class instances for subject ${subjectId}`);
-  } catch (err) {
-    console.error("Error deleting future instances:", err);
-  }
+// Helper to determine end time if not provided or just simple logic
+const calculateEndTime = (startTime) => {
+  const [h, m] = startTime.split(':');
+  const endH = (parseInt(h) + 1) % 24;
+  return `${endH.toString().padStart(2, '0')}:${m}`;
 };
 
-// Helper function to generate class instances for a subject
-const generateClassInstances = async (subject, weeksAhead = 4) => {
-  if (!subject.schedule || subject.schedule.length === 0) {
-    console.log("No schedule defined for subject:", subject.name);
-    return;
-  }
-
-  console.log(`Generating class instances for ${subject.name}...`);
-  const instances = [];
-
-  // Start from today
-  const today = dayjs().startOf("day");
-  const endDate = today.add(weeksAhead, "week");
-
-  // Day name to day number mapping (Sunday = 0, Monday = 1, etc.)
-  const dayMap = {
-    Sun: 0,
-    Mon: 1,
-    Tue: 2,
-    Wed: 3,
-    Thu: 4,
-    Fri: 5,
-    Sat: 6,
-  };
-
-  // For each time slot in the schedule
-  for (const slot of subject.schedule) {
-    const targetDayNum = dayMap[slot.day];
-
-    // Start from today
-    let currentDate = today;
-
-    // If today is past the target day this week, start from next week
-    if (currentDate.day() > targetDayNum) {
-      currentDate = currentDate.add(1, "week").day(targetDayNum);
-    } else {
-      currentDate = currentDate.day(targetDayNum);
-    }
-
-    // Generate instances for each week until endDate
-    while (
-      currentDate.isBefore(endDate) ||
-      currentDate.isSame(endDate, "day")
-    ) {
-      try {
-        // Check if instance already exists (idempotent)
-        const existing = await ClassInstance.findOne({
-          user: subject.user,
-          subject: subject._id,
-          date: currentDate.toDate(),
-          startTime: slot.startTime,
-        });
-
-        if (!existing) {
-          instances.push({
-            user: subject.user,
-            subject: subject._id,
-            date: currentDate.toDate(),
-            startTime: slot.startTime,
-            endTime: slot.endTime,
-            day: slot.day,
-            status: "pending",
-          });
-        }
-      } catch (err) {
-        console.error("Error checking existing instance:", err);
-      }
-
-      currentDate = currentDate.add(1, "week");
-    }
-  }
-
-  // Bulk insert class instances
-  if (instances.length > 0) {
-    try {
-      const result = await ClassInstance.insertMany(instances, {
-        ordered: false,
-      });
-      console.log(
-        `✅ Created ${result.length} class instances for ${subject.name}`,
-      );
-    } catch (err) {
-      // Ignore duplicate key errors
-      if (err.code === 11000) {
-        console.log("Some instances already exist, skipped duplicates");
-      } else {
-        console.error("Error inserting instances:", err);
-      }
-    }
-  } else {
-    console.log("No new instances to create");
-  }
-};
-
-// Add schedule entry (adds to Subject.schedule and generates ClassInstances)
 exports.addSchedule = async (req, res) => {
   const { day, time, subjectId } = req.body;
 
-  console.log("📅 Adding schedule:", { day, time, subjectId });
-
   if (!day || !time || !subjectId) {
-    return res
-      .status(400)
-      .json({ message: "Invalid payload: day, time, and subjectId required" });
-  }
-
-  // Validate day
-  const validDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  if (!validDays.includes(day)) {
-    return res
-      .status(400)
-      .json({
-        message: "Invalid day. Must be Mon, Tue, Wed, Thu, Fri, Sat, or Sun",
-      });
-  }
-
-  // Parse time and calculate end time (1 hour later by default)
-  const startTime = time;
-  const [hours, minutes] = time.split(":");
-  const endHour = (parseInt(hours) + 1) % 24;
-  const endTime = `${endHour.toString().padStart(2, "0")}:${minutes}`;
-
-  try {
-    try {
-      // Find the subject
-      const subject = await Subject.findOne({
-        _id: subjectId,
-        user: req.user._id,
-      });
-      if (!subject) {
-        return res.status(404).json({ message: "Subject not found" });
-      }
-
-      // Check if this time slot already exists
-      const existingSlotIndex = subject.schedule.findIndex(
-        (slot) => slot.day === day && slot.startTime === startTime,
-      );
-
-      if (existingSlotIndex !== -1) {
-        // Update existing slot
-        subject.schedule[existingSlotIndex] = {
-          day,
-          startTime,
-          endTime,
-        };
-        console.log("✅ Schedule entry updated");
-      } else {
-        // Add new schedule entry
-        subject.schedule.push({
-          day,
-          startTime,
-          endTime,
-        });
-        console.log("✅ Schedule entry added");
-      }
-
-      // Update classesPerWeek
-      subject.classesPerWeek = subject.schedule.length;
-
-      await subject.save();
-
-      console.log("✅ Schedule entry added to subject");
-      console.log("📊 Subject now has", subject.schedule.length, "time slots");
-
-      // If updating existing slot, delete future class instances first
-      if (existingSlotIndex !== -1) {
-        await deleteFutureClassInstances(subject._id, req.user._id);
-      }
-
-      // Generate ClassInstances for the next 4 weeks
-      await generateClassInstances(subject, 4);
-
-      // Return the updated subject
-      const updatedSubject = await Subject.findById(subjectId).lean();
-
-      return res.json({
-        message: "Schedule added successfully",
-        subject: updatedSubject,
-        scheduleEntry: { day, startTime, endTime },
-      });
-    } catch (err) {
-      console.error("Database error, using mock data:", err);
-      // Use mock data fallback
-      const subject = Object.values(mockDb.subjects).find(
-        (s) => s._id === subjectId && s.user_id === req.user._id.toString(),
-      );
-      if (!subject) {
-        return res.status(404).json({ message: "Subject not found" });
-      }
-
-      // Check if this time slot already exists
-      const existingSlotIndex = subject.schedule.findIndex(
-        (slot) => slot.day === day && slot.startTime === startTime,
-      );
-
-      if (existingSlotIndex !== -1) {
-        // Update existing slot
-        subject.schedule[existingSlotIndex] = {
-          day,
-          startTime,
-          endTime,
-        };
-        console.log("✅ Schedule entry updated");
-      } else {
-        // Add new schedule entry
-        subject.schedule.push({
-          day,
-          startTime,
-          endTime,
-        });
-        console.log("✅ Schedule entry added");
-      }
-
-      // Update classesPerWeek
-      subject.classesPerWeek = subject.schedule.length;
-
-      console.log("✅ Schedule entry added to subject (mock)");
-      console.log("📊 Subject now has", subject.schedule.length, "time slots");
-
-      return res.json({
-        message: "Schedule added successfully",
-        subject: subject,
-        scheduleEntry: { day, startTime, endTime },
-      });
-    }
-  } catch (err) {
-    console.error("❌ Error adding schedule:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
-};
-
-// Get schedule for user (returns all subjects with their schedules)
-exports.getSchedule = async (req, res) => {
-  try {
-    try {
-      const subjects = await Subject.find({ user: req.user._id }).maxTimeMS(1000).lean();
-
-      console.log("📚 Found", subjects.length, "subjects");
-
-      // Flatten all schedule entries across subjects
-      const scheduleEntries = [];
-
-      subjects.forEach((subject) => {
-        if (subject.schedule && subject.schedule.length > 0) {
-          subject.schedule.forEach((slot) => {
-            scheduleEntries.push({
-              _id: `${subject._id}_${slot.day}_${slot.startTime}`, // Composite ID
-              day: slot.day,
-              time: slot.startTime,
-              endTime: slot.endTime,
-              subject: subject,
-              subjectId: subject._id,
-            });
-          });
-        }
-      });
-
-      console.log("📅 Total schedule entries:", scheduleEntries.length);
-
-      return res.json(scheduleEntries);
-    } catch (err) {
-      console.error("Database error, using mock data:", err);
-      // Use mock data
-      const subjects = Object.values(mockDb.subjects).filter(
-        (s) => s.user_id === req.user._id.toString(),
-      );
-      const scheduleEntries = [];
-      subjects.forEach((subject) => {
-        if (subject.schedule && subject.schedule.length > 0) {
-          subject.schedule.forEach((slot) => {
-            scheduleEntries.push({
-              _id: `${subject._id}_${slot.day}_${slot.startTime}`,
-              day: slot.day,
-              time: slot.startTime,
-              endTime: slot.endTime,
-              subject: subject,
-              subjectId: subject._id,
-            });
-          });
-        }
-      });
-      return res.json(scheduleEntries);
-    }
-  } catch (err) {
-    console.error("❌ Error fetching schedule:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
-};
-
-// Get today's classes (from ClassInstance, not WeeklySchedule)
-exports.getTodaysClasses = async (req, res) => {
-  try {
-    const today = dayjs().startOf("day").toDate();
-    const tomorrow = dayjs().add(1, "day").startOf("day").toDate();
-
-    console.log("📅 Fetching today's classes for:", today);
-
-    // Auto-generate missing instances for today (safety check)
-    const subjects = await Subject.find({ user: req.user._id }).maxTimeMS(1000);
-    for (const subject of subjects) {
-      if (subject.schedule && subject.schedule.length > 0) {
-        await generateClassInstances(subject, 1); // Generate for next 1 week
-      }
-    }
-
-    const classes = await ClassInstance.find({
-      user: req.user._id,
-      date: { $gte: today, $lt: tomorrow },
-    })
-      .populate("subject")
-      .sort({ startTime: 1 })
-      .lean();
-
-    console.log(`✅ Found ${classes.length} classes for today`);
-
-    // Calculate attendance percentage for each subject
-    const classesWithPercent = classes.map((cls) => {
-      if (cls.subject) {
-        const totalConducted =
-          cls.subject.totalClasses - (cls.subject.classesCancelled || 0);
-        const percent =
-          totalConducted === 0
-            ? 0
-            : Math.round((cls.subject.classesAttended / totalConducted) * 100);
-        return {
-          ...cls,
-          subject: {
-            ...cls.subject,
-            percent,
-          },
-        };
-      }
-      return cls;
-    });
-
-    return res.json(classesWithPercent);
-  } catch (err) {
-    console.error("❌ Error fetching today's classes:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
-};
-
-// Mark today's class (updates ClassInstance status)
-exports.markTodayClass = async (req, res) => {
-  const { scheduleId, date, status } = req.body;
-
-  console.log("✏️ Marking class:", { scheduleId, date, status });
-
-  if (!scheduleId || !date || !["attended", "missed"].includes(status)) {
     return res.status(400).json({ message: "Invalid payload" });
   }
 
   try {
-    // scheduleId is actually the ClassInstance _id in the new architecture
-    const classInstance = await ClassInstance.findOne({
-      _id: scheduleId,
-      user: req.user._id,
-    });
+    const endTime = calculateEndTime(time);
 
-    if (!classInstance) {
-      return res.status(404).json({ message: "Class not found" });
-    }
+    // Check if subject belongs to user
+    const { data: subject, error: subErr } = await supabase
+      .from('subjects')
+      .select('*')
+      .eq('id', subjectId)
+      .eq('user_id', req.user.id)
+      .single();
 
-    const subject = await Subject.findById(classInstance.subject);
-    if (!subject) {
-      return res.status(404).json({ message: "Subject not found" });
-    }
+    if (subErr || !subject) return res.status(404).json({ message: 'Subject not found' });
 
-    const oldStatus = classInstance.status;
-    console.log(`Changing status from ${oldStatus} to ${status}`);
+    // Insert schedule
+    const { data: sched, error: insertErr } = await supabase
+      .from('weekly_schedule')
+      .insert([{ subject_id: subjectId, day, start_time: time, end_time: endTime }])
+      .select()
+      .single();
 
-    // Revert old status from subject counters
-    if (oldStatus === "attended") {
-      subject.classesAttended -= 1;
-      subject.totalClasses -= 1;
-    } else if (oldStatus === "missed") {
-      subject.totalClasses -= 1;
-    } else if (oldStatus === "cancelled") {
-      subject.classesCancelled -= 1;
-    }
-
-    // Apply new status to subject counters
-    if (status === "attended") {
-      subject.classesAttended += 1;
-      subject.totalClasses += 1;
-    } else if (status === "missed") {
-      subject.totalClasses += 1;
-    }
-
-    // Update class instance
-    classInstance.status = status;
-    await classInstance.save();
-    await subject.save();
-
-    console.log("✅ Status updated successfully");
-
-    // Recalculate attendance percentage
-    const totalConducted = subject.totalClasses - subject.classesCancelled;
-    const percent =
-      totalConducted === 0
-        ? 0
-        : Math.round((subject.classesAttended / totalConducted) * 100);
+    if (insertErr) throw insertErr;
 
     return res.json({
-      subject: {
-        ...subject.toObject(),
-        percent,
-      },
-      log: classInstance,
+      message: "Schedule added successfully",
+      subject,
+      scheduleEntry: { day, startTime: time, endTime }
     });
+
   } catch (err) {
-    console.error("❌ Error marking class:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
+    console.error('Add Schedule Error:', err);
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
-// Get attendance for a subject
+exports.getSchedule = async (req, res) => {
+  try {
+    const { data: subjects, error } = await supabase
+      .from('subjects')
+      .select('*, weekly_schedule(*)')
+      .eq('user_id', req.user.id);
+
+    if (error) throw error;
+
+    const entries = [];
+    subjects.forEach(sub => {
+      const scheds = sub.weekly_schedule || [];
+      scheds.forEach(s => {
+        entries.push({
+          _id: `${sub.id}_${s.day}_${s.start_time}`,
+          day: s.day,
+          time: s.start_time,
+          endTime: s.end_time,
+          subject: sub,
+          subjectId: sub.id
+        });
+      });
+    });
+
+    res.json(entries);
+  } catch (err) {
+    console.error('Get Schedule Error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Proxies to Attendance Controller Logic
+exports.getTodaysClasses = (req, res) => {
+  return attendanceController.getTodaysClasses(req, res);
+};
+
+exports.markTodayClass = (req, res) => {
+  req.body.classId = req.body.scheduleId;
+  return attendanceController.updateClassStatus(req, res);
+};
+
+exports.regenerateAllSchedules = (req, res) => {
+  return res.json({ message: "Schedules regenerated (Dynamic Mode)" });
+};
+
 exports.getSubjectAttendance = async (req, res) => {
+  // We can reuse listSubjects logic but filter for one?
+  // Or just implement simplified fetch.
+  const { subjectId } = req.params;
   try {
-    const subject = await Subject.findOne({
-      _id: req.params.subjectId,
-      user: req.user._id,
-    }).lean();
+    const { data: subject, error } = await supabase
+      .from('subjects')
+      .select('*')
+      .eq('id', subjectId)
+      .eq('user_id', req.user.id)
+      .single();
 
-    if (!subject) {
-      return res.status(404).json({ message: "Subject not found" });
-    }
+    if (error || !subject) return res.status(404).json({ message: "Subject not found" });
 
-    const totalConducted =
-      subject.totalClasses - (subject.classesCancelled || 0);
-    const percent =
-      totalConducted === 0
-        ? 0
-        : Math.round((subject.classesAttended / totalConducted) * 100);
+    // Fetch logs
+    const { data: logs } = await supabase
+      .from('attendance_logs')
+      .select('status')
+      .eq('subject_id', subjectId);
 
-    let status = "red";
-    if (percent >= 75) status = "green";
-    else if (percent >= 65) status = "yellow";
+    const attended = logs.filter(l => l.status === 'attended').length;
+    const missed = logs.filter(l => l.status === 'missed').length;
+    const total = attended + missed;
+    const percent = total === 0 ? 0 : Math.round((attended / total) * 100);
 
-    return res.json({ ...subject, percent, status });
-  } catch (err) {
-    console.error("❌ Error fetching subject attendance:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
-};
-
-// Regenerate class instances for all subjects (maintenance endpoint)
-exports.regenerateAllSchedules = async (req, res) => {
-  try {
-    console.log("🔄 Regenerating all schedules...");
-
-    const subjects = await Subject.find({ user: req.user._id });
-
-    let totalGenerated = 0;
-
-    for (const subject of subjects) {
-      if (subject.schedule && subject.schedule.length > 0) {
-        await generateClassInstances(subject, 4);
-        totalGenerated += subject.schedule.length * 4; // Approximate
-      }
-    }
-
-    console.log("✅ Regeneration complete");
+    let statusColor = 'red';
+    if (percent >= 75) statusColor = 'green';
+    else if (percent >= 65) statusColor = 'yellow';
 
     return res.json({
-      message: "Schedules regenerated successfully",
-      subjectsProcessed: subjects.length,
+      ...subject,
+      percent,
+      status: statusColor,
+      classesAttended: attended,
+      totalClasses: total
     });
   } catch (err) {
-    console.error("❌ Error regenerating schedules:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
+    console.error('Get Subject Attendance Error:', err);
+    res.status(500).json({ message: 'Server error' });
   }
 };
