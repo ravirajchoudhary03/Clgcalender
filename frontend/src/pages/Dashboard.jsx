@@ -282,7 +282,7 @@ export const Dashboard = () => {
             <div className="flex items-center gap-3">
               <div className="text-right">
                 <p className="text-xs text-slate-400">Welcome back</p>
-                <p className="text-sm font-semibold text-slate-100">{user?.name || 'Student'}</p>
+                <p className="text-sm font-semibold text-slate-100">{user?.user_metadata?.name || user?.email?.split('@')[0] || 'Student'}</p>
               </div>
               <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 border border-slate-600 shadow-md" />
             </div>
