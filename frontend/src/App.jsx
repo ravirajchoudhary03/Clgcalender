@@ -1,4 +1,6 @@
 // App.jsx: main app with routing and context
+
+import DarkModeToggle from './components/DarkModeToggle';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -21,6 +23,7 @@ function AppRoutes() {
 
   return (
     <>
+      <DarkModeToggle />
       {user && <Navbar />}
       <Routes>
         <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <Login />} />
