@@ -1,9 +1,7 @@
-// Auth routes: register and login
-
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const mockDb = require('../config/mockDb');
+const supabase = require('../config/supabase');
 
 const router = express.Router();
 
@@ -13,19 +11,35 @@ router.post('/register', async (req, res) => {
   if (!name || !email || !password) return res.status(400).json({ message: 'Missing fields' });
 
   try {
-    // Use mock data directly
-    const existing = Object.values(mockDb.users).find(u => u.email === email);
-    if (existing) return res.status(400).json({ message: 'User exists' });
-    
+    // Check if user exists
+    const { data: existing, error: findError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .single();
+
+    if (existing) return res.status(400).json({ message: 'User already exists' });
+
+    // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashed = await bcrypt.hash(password, salt);
-    const id = mockDb.nextId.users++;
-    
-    mockDb.users[id] = { _id: String(id), name, email, password: hashed, createdAt: new Date() };
-    const token = jwt.sign({ id: String(id) }, process.env.JWT_SECRET || 'secret', { expiresIn: '7d' });
-    return res.json({ token, user: { id: String(id), name, email } });
+
+    // Insert user
+    const { data: newUser, error: insertError } = await supabase
+      .from('users')
+      .insert([
+        { name, email, password: hashed }
+      ])
+      .select()
+      .single();
+
+    if (insertError) throw insertError;
+
+    const token = jwt.sign({ id: newUser.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    return res.json({ token, user: { id: newUser.id, name: newUser.name, email: newUser.email } });
+
   } catch (err) {
-    console.error(err);
+    console.error('Register Error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -36,17 +50,24 @@ router.post('/login', async (req, res) => {
   if (!email || !password) return res.status(400).json({ message: 'Missing fields' });
 
   try {
-    // Use mock data directly
-    const user = Object.values(mockDb.users).find(u => u.email === email);
-    if (!user) return res.status(400).json({ message: 'Invalid credentials' });
+    // Find user
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
 
+    if (error || !user) return res.status(400).json({ message: 'Invalid credentials' });
+
+    // Check password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'secret', { expiresIn: '7d' });
-    return res.json({ token, user: { id: user._id, name: user.name, email: user.email } });
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    return res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+
   } catch (err) {
-    console.error(err);
+    console.error('Login Error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
