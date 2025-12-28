@@ -7,6 +7,7 @@ export const attendanceService = {
     api.post("/attendance/subject", { name, color, classesPerWeek, schedule }),
 
   listSubjects: () => api.get("/attendance/subjects"),
+  deleteSubject: (id) => api.delete(`/attendance/subject/${id}`),
 
   // Legacy attendance logging
   logAttendance: (subjectId, date, status) =>

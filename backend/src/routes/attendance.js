@@ -3,6 +3,7 @@ const auth = require("../middleware/auth");
 const {
   createSubject,
   listSubjects,
+  deleteSubject,
   logAttendance,
   getTodaysClasses,
   getWeekClasses,
@@ -17,6 +18,7 @@ router.use(auth);
 // Subject management
 router.post("/subject", createSubject);
 router.get("/subjects", listSubjects);
+router.delete("/subject/:id", deleteSubject);
 
 // Legacy attendance logging
 router.post("/log", logAttendance);

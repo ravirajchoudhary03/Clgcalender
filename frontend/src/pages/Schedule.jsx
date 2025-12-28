@@ -90,6 +90,19 @@ export const Schedule = () => {
     }
   };
 
+  const handleDeleteSubject = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this subject?")) return;
+    setLoading(true);
+    try {
+      await attendanceService.deleteSubject(id);
+      fetchData();
+    } catch (err) {
+      setError("Failed to delete subject");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const scheduleByDay = (dayName) => schedule.filter((s) => s.day === dayName);
 
   return (
@@ -102,6 +115,38 @@ export const Schedule = () => {
       <div className="bg-green-50 border border-green-200 shadow rounded-lg p-6">
         <h2 className="text-2xl font-bold mb-4">Add a Subject</h2>
         <SubjectForm onSubmit={handleAddSubject} loading={loading} />
+      </div>
+
+      {/* List Existing Subjects */}
+      <div className="bg-white border border-gray-200 shadow rounded-lg p-6">
+        <h2 className="text-lg font-bold mb-4 text-gray-800">Your Subjects</h2>
+        {subjects.length === 0 ? (
+          <p className="text-gray-500">No subjects added yet.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {subjects.map((subj) => (
+              <div
+                key={subj.id}
+                className="flex justify-between items-center p-3 rounded-lg border border-gray-200 bg-gray-50"
+                style={{ borderLeft: `4px solid ${subj.color || '#34D399'}` }}
+              >
+                <div>
+                  <p className="font-semibold text-gray-900">{subj.name}</p>
+                  <p className="text-xs text-gray-500">
+                    {subj.percent !== undefined ? `Attendance: ${subj.percent}%` : ''}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleDeleteSubject(subj.id)}
+                  className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded transition"
+                  title="Delete Subject"
+                >
+                  🗑️
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Temporarily hidden - endpoint not implemented */}

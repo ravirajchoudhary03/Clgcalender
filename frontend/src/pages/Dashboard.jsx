@@ -81,8 +81,16 @@ export const Dashboard = () => {
     console.log("📅 Today's day:", dayjs().format("dddd"));
 
     try {
-      const startOfWeek = dayjs().add(currentWeek * 7, "day").startOf("week").add(1, "day").format("YYYY-MM-DD"); // Mon
-      const endOfWeek = dayjs().add(currentWeek * 7, "day").endOf("week").add(1, "day").format("YYYY-MM-DD"); // Sun
+      // Calculate correct start (Mon) and end (Sun) of week
+      const currentDayObj = dayjs().add(currentWeek * 7, "day");
+      const currentDayIdx = currentDayObj.day(); // 0-6
+      const diffToMonday = currentDayIdx === 0 ? -6 : 1 - currentDayIdx;
+
+      const startOfWeekObj = currentDayObj.add(diffToMonday, "day");
+      const endOfWeekObj = startOfWeekObj.add(6, "day");
+
+      const startOfWeek = startOfWeekObj.format("YYYY-MM-DD");
+      const endOfWeek = endOfWeekObj.format("YYYY-MM-DD");
 
       const [habitsRes, attendanceRes, todaysRes, weekRes, assignRes, examRes, habitLogsRes] = await Promise.all([
         habitService.list(),
@@ -198,8 +206,15 @@ export const Dashboard = () => {
   };
 
   const getWeekDates = () => {
+    // Calculate Monday of the current week (ISO week: Mon-Sun)
     const today = dayjs().add(currentWeek * 7, "day");
-    const monday = today.startOf("week").add(1, "day");
+    const currentDay = today.day(); // 0 (Sun) to 6 (Sat)
+
+    // If Sunday (0), we want previous Monday (-6 days). If Mon (1), 0 days back. 
+    // Logic: diff = (day === 0 ? -6 : 1 - day)
+    const diffToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+    const monday = today.add(diffToMonday, "day");
+
     const dates = [];
     for (let i = 0; i < 7; i++) {
       dates.push(monday.add(i, "day"));

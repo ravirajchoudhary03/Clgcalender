@@ -45,6 +45,26 @@ exports.createSubject = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+exports.deleteSubject = async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
+  const supabase = getClient(getToken(req));
+
+  try {
+    const { error } = await supabase
+      .from('subjects')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId);
+
+    if (error) throw error;
+
+    res.json({ message: 'Subject deleted successfully' });
+  } catch (err) {
+    console.error('Delete Subject Error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
 
 // List subjects with calculated percentage
 exports.listSubjects = async (req, res) => {
@@ -285,8 +305,12 @@ exports.getWeekClasses = async (req, res) => {
   const { weekOffset } = req.query;
   const offset = parseInt(weekOffset) || 0;
   const today = dayjs().add(offset * 7, 'day');
-  const start = today.startOf('week').add(1, 'day'); // Monday
-  const end = today.endOf('week').add(1, 'day'); // Sunday
+
+  const currentDayIdx = today.day();
+  const diffToMonday = currentDayIdx === 0 ? -6 : 1 - currentDayIdx;
+
+  const start = today.add(diffToMonday, 'day'); // Monday
+  const end = start.add(6, 'day'); // Sunday
 
   try {
     const classes = await getDynamicClasses(req.user.id, start, end, req);
