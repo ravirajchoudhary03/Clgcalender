@@ -31,12 +31,14 @@ export const Habits = () => {
   const fetchHabits = async () => {
     try {
       const res = await habitService.list();
-      setHabits(res.data);
-      if (res.data.length > 0) {
+      setHabits(res.data || []); // Default to empty array if data is undefined
+      if (res.data && res.data.length > 0) {
         setSelectedHabit(res.data[0].id);
         fetchStats(res.data[0].id);
       }
     } catch (err) {
+      console.error('Failed to load habits:', err);
+      setHabits([]); // Set empty array on error to prevent crash
       setError("Failed to load habits");
     }
   };
@@ -139,8 +141,8 @@ export const Habits = () => {
                 key={habit.id}
                 onClick={() => selectHabit(habit.id)}
                 className={`w-full text-left px-3 py-2 rounded ${selectedHabit === habit.id
-                    ? "bg-blue-600 text-white"
-                    : "bg-blue-100 hover:bg-blue-150"
+                  ? "bg-blue-600 text-white"
+                  : "bg-blue-100 hover:bg-blue-150"
                   }`}
               >
                 <div className="flex items-center gap-2">

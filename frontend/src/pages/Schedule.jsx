@@ -29,9 +29,12 @@ export const Schedule = () => {
         attendanceService.listSubjects(),
       ]);
       // setSchedule(schedRes.data);
-      setTodaysClasses(classesRes.data);
-      setSubjects(subjRes.data);
+      setTodaysClasses(classesRes.data || []);
+      setSubjects(subjRes.data || []);
     } catch (err) {
+      console.error('Failed to load schedule:', err);
+      setTodaysClasses([]); // Prevent crash
+      setSubjects([]); // Prevent crash
       setError("Failed to load schedule");
     }
   };

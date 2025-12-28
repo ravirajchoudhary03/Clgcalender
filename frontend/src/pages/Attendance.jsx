@@ -19,8 +19,10 @@ export const Attendance = () => {
   const fetchSubjects = async () => {
     try {
       const res = await attendanceService.listSubjects();
-      setSubjects(res.data);
+      setSubjects(res.data || []); // Default to empty array
     } catch (err) {
+      console.error('Failed to load subjects:', err);
+      setSubjects([]); // Prevent crash
       setError("Failed to load subjects");
     }
   };
