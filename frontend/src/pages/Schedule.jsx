@@ -23,14 +23,14 @@ export const Schedule = () => {
 
   const fetchData = async () => {
     try {
-      const [classesRes, subjRes] = await Promise.all([
-        // scheduleService.list(), // Commented out - endpoint not implemented
+      const [scheduleRes, todaysClassesRes, subjectsRes] = await Promise.all([
+        scheduleService.list(),
         scheduleService.getTodaysClasses(),
         attendanceService.listSubjects(),
       ]);
-      // setSchedule(schedRes.data);
-      setTodaysClasses(classesRes.data || []);
-      setSubjects(subjRes.data || []);
+      setSchedule(scheduleRes.data || []);
+      setTodaysClasses(todaysClassesRes.data || []);
+      setSubjects(subjectsRes.data || []);
     } catch (err) {
       console.error('Failed to load schedule:', err);
       setTodaysClasses([]); // Prevent crash
@@ -62,29 +62,15 @@ export const Schedule = () => {
 
   const markClass = async (scheduleId, status) => {
     try {
-      const date = dayjs().format("YYYY-MM-DD");
-      await scheduleService.markClass(scheduleId, date, status);
+      await scheduleService.markClass(scheduleId, status);
       fetchData();
     } catch (err) {
+      console.error(err);
       setError("Failed to mark attendance");
     }
   };
 
-  const getSubjectAttendance = async (subjectId) => {
-    try {
-      const res = await scheduleService.getSubjectAttendance(subjectId);
-      // Update the subject in the state with the new attendance data
-      setTodaysClasses(
-        todaysClasses.map((c) =>
-          c.subject._id === subjectId
-            ? { ...c, subject: { ...c.subject, ...res.data } }
-            : c,
-        ),
-      );
-    } catch (err) {
-      console.error("Failed to get subject attendance");
-    }
-  };
+  // getSubjectAttendance removed as it is not needed with fetchData
 
   const handleAddSubject = async (subjectData) => {
     setLoading(true);
@@ -119,7 +105,7 @@ export const Schedule = () => {
       </div>
 
       {/* Temporarily hidden - endpoint not implemented */}
-      {false && (
+      {true && (
         <div className="bg-blue-50 border border-blue-200 shadow rounded-lg p-6">
           <h2 className="text-2xl font-bold mb-4">Add to Timetable</h2>
           <form onSubmit={addSchedule} className="flex gap-3 flex-wrap items-end">
@@ -181,12 +167,12 @@ export const Schedule = () => {
           <div className="space-y-3">
             {todaysClasses.map((cls) => (
               <div
-                key={cls.id}
+                key={cls._id || cls.id}
                 className="bg-blue-50 border border-blue-300 rounded-lg p-4 flex justify-between items-center"
               >
                 <div>
                   <p className="font-bold text-lg">{cls.subject.name}</p>
-                  <p className="text-sm text-gray-600">{cls.time}</p>
+                  <p className="text-sm text-gray-600">{cls.startTime} - {cls.endTime}</p>
                   {cls.subject.percent !== undefined && (
                     <p className="text-sm text-gray-600">
                       Attendance: {cls.subject.percent}%
@@ -196,19 +182,17 @@ export const Schedule = () => {
                 <div className="flex gap-2">
                   <button
                     onClick={() => {
-                      markClass(cls.id, "attended");
-                      getSubjectAttendance(cls.subject.id);
+                      markClass(cls._id || cls.id, "attended");
                     }}
-                    className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm font-semibold"
+                    className={`px-4 py-2 rounded text-sm font-semibold text-white ${cls.status === 'attended' ? 'bg-green-700' : 'bg-green-500 hover:bg-green-600'}`}
                   >
                     Attended
                   </button>
                   <button
                     onClick={() => {
-                      markClass(cls.id, "missed");
-                      getSubjectAttendance(cls.subject.id);
+                      markClass(cls._id || cls.id, "missed");
                     }}
-                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded text-sm font-semibold"
+                    className={`px-4 py-2 rounded text-sm font-semibold text-white ${cls.status === 'missed' ? 'bg-red-700' : 'bg-red-500 hover:bg-red-600'}`}
                   >
                     Missed
                   </button>
@@ -237,8 +221,8 @@ export const Schedule = () => {
                     key={entry.id}
                     className="bg-blue-100 border border-blue-200 p-2 rounded text-sm"
                   >
-                    <p className="font-semibold">{entry.subject.name}</p>
-                    <p className="text-gray-600 text-xs">{entry.time}</p>
+                    <p className="font-semibold">{entry.subjectName}</p>
+                    <p className="text-gray-600 text-xs">{entry.start_time} - {entry.end_time}</p>
                   </div>
                 ))}
                 {scheduleByDay(dayName).length === 0 && (
