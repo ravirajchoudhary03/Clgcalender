@@ -1,10 +1,13 @@
-const supabase = require('../config/supabase');
+const { getClient } = require('../config/supabase');
 const dayjs = require('dayjs');
+
+const getToken = (req) => req.headers.authorization;
 
 // Create subject with schedule
 exports.createSubject = async (req, res) => {
   const { name, color, schedule } = req.body;
   const userId = req.user.id;
+  const supabase = getClient(getToken(req));
 
   try {
     // 1. Create Subject
@@ -46,6 +49,7 @@ exports.createSubject = async (req, res) => {
 // List subjects with calculated percentage
 exports.listSubjects = async (req, res) => {
   const userId = req.user.id;
+  const supabase = getClient(getToken(req));
   try {
     // 1. Get Subjects
     const { data: subjects, error: subError } = await supabase
@@ -104,6 +108,8 @@ exports.listSubjects = async (req, res) => {
 // Update class status (Attendance Log)
 exports.updateClassStatus = async (req, res) => {
   const { classId, status } = req.body; // classId is assumed to be composite: "subjectId_date" or just we rely on payload?
+  const supabase = getClient(getToken(req));
+
   // Frontend might be sending old MongoID if we don't fix `getTodaysClasses`. 
   // We will assume `getTodaysClasses` returns a composite ID or we parse arguments if simplified.
   // Actually, wait. Frontend sends `classId`.
@@ -198,9 +204,10 @@ exports.updateClassStatus = async (req, res) => {
 };
 
 // Helper to generate class objects
-const getDynamicClasses = async (userId, start, end) => {
+const getDynamicClasses = async (userId, start, end, req) => {
   const startDate = dayjs(start);
   const endDate = dayjs(end);
+  const supabase = getClient(getToken(req));
 
   // 1. Get Subjects & Schedules
   const { data: subjects, error } = await supabase
@@ -266,7 +273,7 @@ const getDynamicClasses = async (userId, start, end) => {
 exports.getTodaysClasses = async (req, res) => {
   const today = dayjs();
   try {
-    const classes = await getDynamicClasses(req.user.id, today, today);
+    const classes = await getDynamicClasses(req.user.id, today, today, req);
     res.json(classes);
   } catch (err) {
     console.error('Todays Classes Error:', err);
@@ -282,7 +289,7 @@ exports.getWeekClasses = async (req, res) => {
   const end = today.endOf('week').add(1, 'day'); // Sunday
 
   try {
-    const classes = await getDynamicClasses(req.user.id, start, end);
+    const classes = await getDynamicClasses(req.user.id, start, end, req);
     res.json(classes);
   } catch (err) {
     console.error('Week Classes Error:', err);
@@ -299,7 +306,7 @@ exports.getClassInstances = async (req, res) => {
     const start = startDate ? dayjs(startDate) : dayjs();
     const end = endDate ? dayjs(endDate) : dayjs();
 
-    const classes = await getDynamicClasses(req.user.id, start, end);
+    const classes = await getDynamicClasses(req.user.id, start, end, req);
     res.json(classes);
   } catch (err) {
     console.error('Get Class Instances Error:', err);

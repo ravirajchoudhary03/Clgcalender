@@ -18,6 +18,9 @@ app.use('/api/habits', require('./routes/habits'));
 app.use('/api/attendance', require('./routes/attendance'));
 app.use('/api/schedule', require('./routes/schedule'));
 app.use('/api/users', require('./routes/users'));
+app.use('/api/assignments', require('./routes/assignments'));
+app.use('/api/exams', require('./routes/exams'));
+app.use('/api/seed', require('./routes/seed'));
 
 app.get('/', (req, res) => res.json({
   message: 'College Organizer Backend (Supabase)',

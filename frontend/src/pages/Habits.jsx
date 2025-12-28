@@ -33,8 +33,8 @@ export const Habits = () => {
       const res = await habitService.list();
       setHabits(res.data);
       if (res.data.length > 0) {
-        setSelectedHabit(res.data[0]._id);
-        fetchStats(res.data[0]._id);
+        setSelectedHabit(res.data[0].id);
+        fetchStats(res.data[0].id);
       }
     } catch (err) {
       setError("Failed to load habits");
@@ -136,13 +136,12 @@ export const Habits = () => {
           <div className="space-y-2">
             {habits.map((habit) => (
               <button
-                key={habit._id}
-                onClick={() => selectHabit(habit._id)}
-                className={`w-full text-left px-3 py-2 rounded ${
-                  selectedHabit === habit._id
+                key={habit.id}
+                onClick={() => selectHabit(habit.id)}
+                className={`w-full text-left px-3 py-2 rounded ${selectedHabit === habit.id
                     ? "bg-blue-600 text-white"
                     : "bg-blue-100 hover:bg-blue-150"
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-2">
                   <div

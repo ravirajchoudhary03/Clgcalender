@@ -10,11 +10,14 @@ module.exports = async (req, res, next) => {
 
   const token = authHeader.split(' ')[1];
   try {
-    const { data: { user }, error } = await require('../config/supabase').auth.getUser(token);
+    const { data: { user }, error } = await require('../config/supabase').supabase.auth.getUser(token);
 
     if (error || !user) {
       throw new Error('Invalid token');
     }
+
+    console.log('AUTH MIDDLEWARE - User from Supabase:', user);
+    console.log('AUTH MIDDLEWARE - User ID:', user.id);
 
     req.user = { id: user.id };
     next();

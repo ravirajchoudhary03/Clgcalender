@@ -14,6 +14,8 @@ import dayjs from "dayjs";
 import habitService from "../services/habitService";
 import attendanceService from "../services/attendanceService";
 import scheduleService from "../services/scheduleService";
+import assignmentService from "../services/assignmentService";
+import examService from "../services/examService";
 import { TodaysClasses } from "../components/TodaysClasses";
 
 import { useAuth } from "../context/AuthContext";
@@ -26,6 +28,9 @@ export const Dashboard = () => {
   const [schedule, setSchedule] = useState([]);
   const [todaysClasses, setTodaysClasses] = useState([]);
   const [weekClasses, setWeekClasses] = useState([]);
+  const [assignments, setAssignments] = useState([]);
+  const [exams, setExams] = useState([]);
+  const [performanceData, setPerformanceData] = useState([]);
   const [timer, setTimer] = useState(45 * 60);
   const [timerActive, setTimerActive] = useState(false);
   const [currentWeek, setCurrentWeek] = useState(0);
@@ -76,11 +81,17 @@ export const Dashboard = () => {
     console.log("📅 Today's day:", dayjs().format("dddd"));
 
     try {
-      const [habitsRes, attendanceRes, todaysRes, weekRes] = await Promise.all([
+      const startOfWeek = dayjs().add(currentWeek * 7, "day").startOf("week").add(1, "day").format("YYYY-MM-DD"); // Mon
+      const endOfWeek = dayjs().add(currentWeek * 7, "day").endOf("week").add(1, "day").format("YYYY-MM-DD"); // Sun
+
+      const [habitsRes, attendanceRes, todaysRes, weekRes, assignRes, examRes, habitLogsRes] = await Promise.all([
         habitService.list(),
         attendanceService.listSubjects(),
         attendanceService.getTodaysClasses(),
         attendanceService.getWeekClasses(currentWeek),
+        assignmentService.list(),
+        examService.list(),
+        habitService.getLogs(startOfWeek, endOfWeek),
       ]);
 
       console.log("📊 Fetched data:");
@@ -117,6 +128,31 @@ export const Dashboard = () => {
       setAttendance(attendanceRes.data || []);
       setTodaysClasses(todaysRes.data || []);
       setWeekClasses(weekRes.data || []);
+      setAssignments(assignRes.data || []);
+      setExams(examRes.data || []);
+
+      // Calculate Performance Data
+      const activeHabitsCount = (habitsRes.data || []).length;
+      const logs = habitLogsRes.data || [];
+      const classes = weekRes.data || [];
+      const shortDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+      const graphData = shortDays.map((dayName, idx) => {
+        // Correct date for this day of week (Mon is start)
+        const dateStr = dayjs(startOfWeek).add(idx, 'day').format('YYYY-MM-DD');
+
+        // Habit Score
+        const dayLogs = logs.filter(l => l.date === dateStr && l.completed);
+        const score = activeHabitsCount > 0 ? Math.round((dayLogs.length / activeHabitsCount) * 100) : 0;
+
+        // Classes Attended
+        const dayClasses = classes.filter(c => dayjs(c.date).format('YYYY-MM-DD') === dateStr);
+        const attended = dayClasses.filter(c => c.status === 'attended').length;
+
+        return { day: dayName, score, attended };
+      });
+
+      setPerformanceData(graphData);
 
       console.log("✅ Dashboard data loaded successfully");
       console.log(
@@ -386,34 +422,29 @@ export const Dashboard = () => {
               </span>
             </div>
             <div className="space-y-3">
-              <div className="bg-gray-700 bg-opacity-50 rounded p-3 border-l-4 border-red-500">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-white font-semibold text-sm">
-                      ✓ DBMS Report
-                    </p>
-                    <p className="text-gray-400 text-xs mt-1">
-                      Due in 4 hours!
-                    </p>
+              {assignments.length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-4">No assignments due! 🎉</p>
+              ) : (
+                assignments.map((assignment) => (
+                  <div key={assignment.id} className={`bg-gray-700 bg-opacity-50 rounded p-3 border-l-4 ${dayjs(assignment.due_date).diff(dayjs(), 'hour') < 24 ? 'border-red-500' : 'border-blue-500'}`}>
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="text-white font-semibold text-sm">
+                          {assignment.completed ? '✓ ' : '○ '} {assignment.title}
+                        </p>
+                        <p className="text-gray-400 text-xs mt-1">
+                          {assignment.subject?.name} • Due: {dayjs(assignment.due_date).format("MMM D, h:mm A")}
+                        </p>
+                      </div>
+                      {!assignment.completed && dayjs(assignment.due_date).diff(dayjs(), 'day') <= 2 && (
+                        <span className="bg-red-600 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold">
+                          !
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <span className="bg-red-600 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold">
-                    1
-                  </span>
-                </div>
-              </div>
-              <div className="bg-gray-700 bg-opacity-50 rounded p-3 border-l-4 border-orange-500">
-                <div>
-                  <p className="text-white font-semibold text-sm">
-                    ✓ Physics Lab Work
-                  </p>
-                  <p className="text-gray-400 text-xs mt-1">Due: April 12</p>
-                </div>
-                <div className="mt-2 flex items-center gap-1">
-                  <span className="bg-gray-600 text-white text-xs px-2 py-1 rounded">
-                    📌 Checklist
-                  </span>
-                </div>
-              </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -425,15 +456,23 @@ export const Dashboard = () => {
                 →
               </span>
             </div>
-            <div className="bg-gray-700 bg-opacity-50 rounded p-4 border border-blue-600">
-              <p className="text-white font-bold text-sm">Mid-Sem: DBMS</p>
-              <p className="text-gray-300 text-xs mt-2 flex items-center gap-1">
-                📅 April 11
-              </p>
-              <button className="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 rounded font-semibold transition">
-                View Syllabus →
-              </button>
-            </div>
+            {exams.length === 0 ? (
+              <p className="text-gray-400 text-sm text-center py-4">No upcoming exams! 🎈</p>
+            ) : (
+              exams.map((exam) => (
+                <div key={exam.id} className="bg-gray-700 bg-opacity-50 rounded p-4 border border-blue-600 mb-3">
+                  <p className="text-white font-bold text-sm">{exam.title}</p>
+                  <p className="text-gray-300 text-xs mt-2 flex items-center gap-1">
+                    📅 {dayjs(exam.date).format("MMM D, YYYY")} • {exam.subject?.name}
+                  </p>
+                  {exam.syllabus && (
+                    <button className="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 rounded font-semibold transition" onClick={() => alert(exam.syllabus)}>
+                      View Syllabus →
+                    </button>
+                  )}
+                </div>
+              ))
+            )}
           </div>
 
           {/* Study Planner */}
@@ -515,15 +554,7 @@ export const Dashboard = () => {
             </h3>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart
-                data={[
-                  { day: "Mon", score: 75, attended: 3 },
-                  { day: "Tue", score: 80, attended: 3 },
-                  { day: "Wed", score: 85, attended: 3 },
-                  { day: "Thu", score: 82, attended: 2 },
-                  { day: "Fri", score: 88, attended: 3 },
-                  { day: "Sat", score: 90, attended: 2 },
-                  { day: "Sun", score: 92, attended: 1 },
-                ]}
+                data={performanceData}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="#444" />
                 <XAxis dataKey="day" stroke="#888" />

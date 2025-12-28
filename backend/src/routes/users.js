@@ -1,12 +1,14 @@
 const express = require('express');
 const auth = require('../middleware/auth');
-const supabase = require('../config/supabase');
+const { getClient } = require('../config/supabase');
 
 const router = express.Router();
+const getToken = (req) => req.headers.authorization;
 
 // Get current user
 router.get('/me', auth, async (req, res) => {
   try {
+    const supabase = getClient(getToken(req));
     const { data: user, error } = await supabase
       .from('users')
       .select('id, name, email')
