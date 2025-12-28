@@ -28,4 +28,11 @@ app.get('/', (req, res) => res.json({
 }));
 
 const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+
+// Only start server if not in serverless environment (Vercel)
+if (process.env.VERCEL !== '1') {
+  app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+}
+
+// Export for Vercel serverless
+module.exports = app;

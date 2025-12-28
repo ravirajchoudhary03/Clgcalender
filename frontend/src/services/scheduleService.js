@@ -4,9 +4,9 @@ import api from './api';
 export const scheduleService = {
   add: (day, time, subjectId) => api.post('/schedule', { day, time, subjectId }),
   list: () => api.get('/schedule'),
-  getTodaysClasses: () => api.get('/schedule/today'),
-  markClass: (scheduleId, date, status) => api.post('/schedule/today/mark', { scheduleId, date, status }),
-  getSubjectAttendance: (subjectId) => api.get(`/schedule/subject/${subjectId}/attendance`)
+  getTodaysClasses: () => api.get('/attendance/classes/today'),
+  markClass: (classId, status) => api.post('/attendance/classes/update-status', { classId, status }),
+  getSubjectAttendance: (subjectId) => api.get(`/attendance/subjects`)
 };
 
 export default scheduleService;

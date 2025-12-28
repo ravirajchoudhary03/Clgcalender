@@ -23,12 +23,12 @@ export const Schedule = () => {
 
   const fetchData = async () => {
     try {
-      const [schedRes, classesRes, subjRes] = await Promise.all([
-        scheduleService.list(),
+      const [classesRes, subjRes] = await Promise.all([
+        // scheduleService.list(), // Commented out - endpoint not implemented
         scheduleService.getTodaysClasses(),
         attendanceService.listSubjects(),
       ]);
-      setSchedule(schedRes.data);
+      // setSchedule(schedRes.data);
       setTodaysClasses(classesRes.data);
       setSubjects(subjRes.data);
     } catch (err) {
@@ -115,57 +115,59 @@ export const Schedule = () => {
         <SubjectForm onSubmit={handleAddSubject} loading={loading} />
       </div>
 
-      {/* Add Schedule */}
-      <div className="bg-blue-50 border border-blue-200 shadow rounded-lg p-6">
-        <h2 className="text-2xl font-bold mb-4">Add to Timetable</h2>
-        <form onSubmit={addSchedule} className="flex gap-3 flex-wrap items-end">
-          <div>
-            <label className="block text-sm font-semibold mb-1">Day</label>
-            <select
-              value={day}
-              onChange={(e) => setDay(e.target.value)}
-              className="border border-gray-300 p-2 rounded bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
+      {/* Temporarily hidden - endpoint not implemented */}
+      {false && (
+        <div className="bg-blue-50 border border-blue-200 shadow rounded-lg p-6">
+          <h2 className="text-2xl font-bold mb-4">Add to Timetable</h2>
+          <form onSubmit={addSchedule} className="flex gap-3 flex-wrap items-end">
+            <div>
+              <label className="block text-sm font-semibold mb-1">Day</label>
+              <select
+                value={day}
+                onChange={(e) => setDay(e.target.value)}
+                className="border border-gray-300 p-2 rounded bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
+              >
+                {days.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold mb-1">Time</label>
+              <input
+                type="time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                className="border border-gray-300 p-2 rounded bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
+              />
+            </div>
+            <div className="flex-1 min-w-40">
+              <label className="block text-sm font-semibold mb-1">Subject</label>
+              <select
+                value={subjectId}
+                onChange={(e) => setSubjectId(e.target.value)}
+                className="w-full border border-gray-300 p-2 rounded bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
+              >
+                <option value="">Select subject</option>
+                {subjects.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
             >
-              {days.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-semibold mb-1">Time</label>
-            <input
-              type="time"
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
-              className="border border-gray-300 p-2 rounded bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
-            />
-          </div>
-          <div className="flex-1 min-w-40">
-            <label className="block text-sm font-semibold mb-1">Subject</label>
-            <select
-              value={subjectId}
-              onChange={(e) => setSubjectId(e.target.value)}
-              className="w-full border border-gray-300 p-2 rounded bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
-            >
-              <option value="">Select subject</option>
-              {subjects.map((s) => (
-                <option key={s._id} value={s._id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-          >
-            {loading ? "Adding..." : "Add"}
-          </button>
-        </form>
-      </div>
+              {loading ? "Adding..." : "Add"}
+            </button>
+          </form>
+        </div>
+      )}
 
       {/* Today's Classes */}
       <div className="bg-blue-50 border border-blue-200 shadow rounded-lg p-6">
@@ -176,7 +178,7 @@ export const Schedule = () => {
           <div className="space-y-3">
             {todaysClasses.map((cls) => (
               <div
-                key={cls._id}
+                key={cls.id}
                 className="bg-blue-50 border border-blue-300 rounded-lg p-4 flex justify-between items-center"
               >
                 <div>
@@ -191,8 +193,8 @@ export const Schedule = () => {
                 <div className="flex gap-2">
                   <button
                     onClick={() => {
-                      markClass(cls._id, "attended");
-                      getSubjectAttendance(cls.subject._id);
+                      markClass(cls.id, "attended");
+                      getSubjectAttendance(cls.subject.id);
                     }}
                     className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm font-semibold"
                   >
@@ -200,8 +202,8 @@ export const Schedule = () => {
                   </button>
                   <button
                     onClick={() => {
-                      markClass(cls._id, "missed");
-                      getSubjectAttendance(cls.subject._id);
+                      markClass(cls.id, "missed");
+                      getSubjectAttendance(cls.subject.id);
                     }}
                     className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded text-sm font-semibold"
                   >
@@ -229,7 +231,7 @@ export const Schedule = () => {
               <div className="space-y-2">
                 {scheduleByDay(dayName).map((entry) => (
                   <div
-                    key={entry._id}
+                    key={entry.id}
                     className="bg-blue-100 border border-blue-200 p-2 rounded text-sm"
                   >
                     <p className="font-semibold">{entry.subject.name}</p>

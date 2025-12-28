@@ -1,8 +1,8 @@
 import axios from 'axios';
 
-// API base URL - use relative /api so Vite proxy forwards to backend on port 5000
+// API base URL - use environment variable or fallback to /api for local dev
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_URL || '/api',
   headers: { 'Content-Type': 'application/json' }
 });
 
