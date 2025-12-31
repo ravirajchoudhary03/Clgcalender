@@ -27,7 +27,7 @@ export const ManageSubjects = () => {
 
     setLoading(true);
     try {
-      await api.post('/attendance/subjects', {
+      await api.post('/attendance/subject', {
         name: formData.name,
         color: formData.color,
         totalClasses: 0,
@@ -45,7 +45,7 @@ export const ManageSubjects = () => {
   const handleDeleteSubject = async (id) => {
     if (window.confirm('Delete this subject?')) {
       try {
-        await api.delete(`/attendance/subjects/${id}`);
+        await api.delete(`/attendance/subject/${id}`);
         await fetchSubjects();
       } catch (err) {
         setError('Failed to delete subject');
@@ -85,9 +85,8 @@ export const ManageSubjects = () => {
                     key={color}
                     type="button"
                     onClick={() => setFormData({ ...formData, color })}
-                    className={`w-10 h-10 rounded cursor-pointer transition border-2 ${
-                      formData.color === color ? 'border-white' : 'border-transparent'
-                    }`}
+                    className={`w-10 h-10 rounded cursor-pointer transition border-2 ${formData.color === color ? 'border-white' : 'border-transparent'
+                      }`}
                     style={{ backgroundColor: color }}
                   />
                 ))}
@@ -107,7 +106,7 @@ export const ManageSubjects = () => {
         {/* Subjects List */}
         <div className="bg-gray-800 bg-opacity-60 border border-gray-700 rounded-lg p-6">
           <h2 className="text-2xl font-bold text-white mb-4">Your Subjects ({subjects.length})</h2>
-          
+
           {subjects.length === 0 ? (
             <p className="text-gray-400 text-center py-8">No subjects added yet. Add one to get started!</p>
           ) : (

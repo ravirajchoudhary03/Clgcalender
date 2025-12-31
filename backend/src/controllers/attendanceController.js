@@ -70,6 +70,8 @@ exports.deleteSubject = async (req, res) => {
 exports.listSubjects = async (req, res) => {
   const userId = req.user.id;
   const supabase = getClient(getToken(req));
+
+  console.log('📊 LIST SUBJECTS - User ID:', userId);
   try {
     // 1. Get Subjects
     const { data: subjects, error: subError } = await supabase
@@ -77,7 +79,20 @@ exports.listSubjects = async (req, res) => {
       .select('*, weekly_schedule(*)')
       .eq('user_id', userId);
 
-    if (subError) throw subError;
+    console.log('📊 LIST SUBJECTS - Subjects query result:', {
+      count: subjects?.length || 0,
+      error: subError?.message || 'none'
+    });
+
+    if (subError) {
+      console.error('❌ LIST SUBJECTS - Supabase error:', subError);
+      throw subError;
+    }
+
+    if (!subjects || subjects.length === 0) {
+      console.log('⚠️ LIST SUBJECTS - No subjects found for user');
+      return res.json([]);
+    }
 
     // 2. Get Attendance Logs for all subjects
     // We can't easily join and aggregate in one query with Supabase generic client without view/rpc
@@ -87,11 +102,19 @@ exports.listSubjects = async (req, res) => {
       .select('*')
       .in('subject_id', subjects.map(s => s.id));
 
-    if (logError) throw logError;
+    console.log('📊 LIST SUBJECTS - Logs query result:', {
+      count: logs?.length || 0,
+      error: logError?.message || 'none'
+    });
+
+    if (logError) {
+      console.error('❌ LIST SUBJECTS - Logs error:', logError);
+      throw logError;
+    }
 
     const result = subjects.map(s => {
       // Filter logs for this subject
-      const subLogs = logs.filter(l => l.subject_id === s.id);
+      const subLogs = logs ? logs.filter(l => l.subject_id === s.id) : [];
 
       const attended = subLogs.filter(l => l.status === 'attended').length;
       const missed = subLogs.filter(l => l.status === 'missed').length;
@@ -118,10 +141,17 @@ exports.listSubjects = async (req, res) => {
       };
     });
 
+    console.log('✅ LIST SUBJECTS - Returning', result.length, 'subjects');
     res.json(result);
   } catch (err) {
-    console.error('List Subjects Error:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error('❌ LIST SUBJECTS ERROR:', err);
+    console.error('❌ Error details:', {
+      message: err.message,
+      code: err.code,
+      details: err.details,
+      hint: err.hint
+    });
+    res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
 
